@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name lanternfish)(type Legacy)(uri ${KIPRJMOD}/lanternfish.lib)(options "")(descr ""))
+)

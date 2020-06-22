@@ -1,0 +1,3 @@
+(fp_lib_table
+  (lib (name lanternfish)(type KiCad)(uri ${KIPRJMOD}/lanternfish.pretty)(options "")(descr ""))
+)
