@@ -859,10 +859,8 @@ F 3 "" H 10450 2850 50  0001 C CNN
 	1    10450 2850
 	1    0    0    -1  
 $EndComp
-Text Label 10500 3350 2    50   ~ 0
+Text Label 10950 3350 2    50   ~ 0
 LCD_BL
-Wire Wire Line
-	10500 3350 10350 3350
 Wire Notes Line
 	11000 2000 11000 4250
 Wire Notes Line
@@ -1748,4 +1746,19 @@ RTC_MSP
 NoConn ~ 5250 4300
 Wire Notes Line
 	10750 5700 8800 5700
+$Comp
+L Device:R R12
+U 1 1 5EF97E2C
+P 10550 3350
+F 0 "R12" V 10343 3350 50  0000 C CNN
+F 1 "220R" V 10434 3350 50  0000 C CNN
+F 2 "Resistor_SMD:R_1206_3216Metric_Pad1.42x1.75mm_HandSolder" V 10480 3350 50  0001 C CNN
+F 3 "~" H 10550 3350 50  0001 C CNN
+	1    10550 3350
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	10400 3350 10350 3350
+Wire Wire Line
+	10950 3350 10700 3350
 $EndSCHEMATC
