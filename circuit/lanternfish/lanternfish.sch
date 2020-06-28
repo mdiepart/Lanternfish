@@ -964,8 +964,6 @@ PCINT25
 Text Notes 4550 4000 0    50   ~ 0
 PCINT24
 Wire Notes Line
-	10750 5700 8800 5700
-Wire Notes Line
 	8800 4450 10750 4450
 $Comp
 L Device:R R21
@@ -1639,8 +1637,6 @@ Wire Notes Line
 	800  4050 800  5750
 Wire Notes Line
 	3700 4050 3700 5750
-Text Notes 9350 5800 0    50   ~ 0
-Note secondary GND for 25V ?\n
 $Comp
 L Mechanical:MountingHole H4
 U 1 1 5EF37172
@@ -1750,4 +1746,6 @@ RTC_MSP
 Text Label 4900 4200 0    50   ~ 0
 RTC_MSP
 NoConn ~ 5250 4300
+Wire Notes Line
+	10750 5700 8800 5700
 $EndSCHEMATC
