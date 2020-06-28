@@ -26,3 +26,6 @@ fp-info-cache
 
 # FreeCAD save
 *.FCStd1
+circuit/lanternfish/gerber/
+
+*.sch-bak
