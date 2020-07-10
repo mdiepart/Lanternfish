@@ -1,3 +1,10 @@
+/*
+ * ATMega 328PB
+ * Clock @ 8MHz (Internal)
+ * UART0
+ * BOD @ 2.7V
+ */
+
 #define FW_VERSION "1.0.0"
 
 #include <LiquidCrystal.h>
@@ -6,25 +13,35 @@
 #include <Encoder.h>
 #include <Wire.h>
 
-#define RTC_ADD 0b1101111
-#define LCD_TIMEOUT 30000
-#define LONG_PRESS_DURATION 1000
+#define RTC_ADD 0b1101111         
+#define LCD_TIMEOUT 30000         //30_000ms = 30s
+#define LONG_PRESS_DURATION 1000  //1000ms = 1s
+#define MIN_PRESS_DURATION 50     //50 ms
+#define RTC_UPDATE_INTERVAL 10000 //10_000ms = 10s
 
 typedef unsigned short int bcd;
 
-LiquidCrystal lcd(10, 9, 8, A0, 7, 0, A1, 4, 1, A2, A3);
-Encoder knob(2, 3);
+LiquidCrystal lcd(PIN_PB2, PIN_PB1, PIN_PB0, PIN_PC0, PIN_PD7, PIN_PD0, PIN_PC1,
+                  PIN_PD4, PIN_PD1, PIN_PC2, PIN_PC3);
+Encoder knob(PIN_PD2, PIN_PD3);
 
 volatile bool deviceSleeping = false;
 volatile unsigned long int lastActivity = 0;
-volatile bool swBack = false;
-bool swBackStat = 0;
-volatile bool swNew = false;
-bool swNewStat = 0;
-volatile bool swMan = false;
-bool swManStat = 0;
-volatile bool swSel = false;
-char swSelStat = 0;//0 = default state; 1 = short press; 2 = long press
+volatile bool swBackStat = 0;
+volatile bool swNewStat = 0;
+volatile bool swManStat = 0; //false = prog mode, true = man mode
+volatile char swSelStat = 0; //0 = default state; 1 = short press; 2 = long press
+
+enum menuState : char {SETTINGS, TIME, TIME_HH, TIME_MM, DAY, DAY_DD, RESET,
+                      RESET_CONFIRM, SCHEDULE, MON, TUE, WED, THU, FRI, SAT,
+                      SUN, PT_SEL, PT_EDIT, PT_DEL, PT_DEL_CONF, PT_NEW,
+                      PT_NEW_HH, PT_NEW_MM, PT_NEW_DC};
+
+menuState menu = SETTINGS;                       
+
+unsigned short int timeH = 0;
+unsigned short int timeM = 0;
+unsigned short int dow = 0;
 
 void setup() {
   /* Rot switch :
@@ -33,18 +50,18 @@ void setup() {
    *  PB = / (PCINT6) (PCIE0)
    *  
    *  LCD :
-   *  RS = D10
-   *  RW = D9
-   *  enable = D8
-   *  LCD_D0 = A0
-   *  LCD_D1 = D7
-   *  LCD_D2 = D0
-   *  LCD_D3 = A1
-   *  LCD_D4 = D4
-   *  LCD_D5 = D1
-   *  LCD_D6 = A2
-   *  LCD_D7 = A3
-   *  Backlight = D6
+   *  RS = D10 = PB2
+   *  RW = D9 = PB1
+   *  enable = D8 = PB0
+   *  LCD_D0 = A0 = PC0
+   *  LCD_D1 = D7 = PD7
+   *  LCD_D2 = D0 = PD0
+   *  LCD_D3 = A1 = PC1
+   *  LCD_D4 = D4 = PD4
+   *  LCD_D5 = D1 = PD1
+   *  LCD_D6 = A2 = PC2
+   *  LCD_D7 = A3 = PC3
+   *  Backlight = D6 = PD6
    *  
    *  Switches :
    *  BACK (1) = / (PCINT24) (PCIE3)
@@ -66,14 +83,16 @@ void setup() {
   lcd.write(FW_VERSION);
    
   /* Configures pins */
-  pinMode(5, OUTPUT);
-  pinMode(6, OUTPUT);
+  pinMode(PIN_PD5, OUTPUT); // Gate
+  pinMode(PIN_PD6, OUTPUT); // LCD Backlight
 
   /* Configures I2C */
   Wire.begin();
   Wire.setClock(400000);
 
   enableRTC();
+
+  //Load data points
   
   /*
    * Enabling PinChangeInterrupt
@@ -84,17 +103,98 @@ void setup() {
   PCICR = 0b00001001;
 }
 
-volatile char prev_
+
 ISR(PCINT0_vect){
-  swMan = PORTB & (1 << PB7);
-  swSel = PORTB & (1 << PB6);
+  bool swMan = (PORTB & (1 << PB7)) != 0;
+  bool swSel = (PORTB & (1 << PB6)) != 0;
   lastActivity = millis();
+
+  /*
+   * Sel switch (knob press switch) 
+   * Sets the status of the switch only after it is release
+   * to be able to distinguish between long and short presses
+   */
+  static long int selFallTime = 0;
+  static bool selPrevValue = true;
+  if(selPrevValue && !swSel){
+    //Falling edge
+    selFallTime = millis();    
+  }else if(!selPrevValue && swSel){
+    //Rising edge
+    if( (millis()-selFallTime < LONG_PRESS_DURATION) &&
+        (millis()-selFallTime > MIN_PRESS_DURATION) ){
+      swSelStat = 1; //Short press
+    }
+  }else if(!swSel &&
+            (millis()-selFallTime > LONG_PRESS_DURATION)){
+    swSelStat = 2; //Long press
+  }
+  selPrevValue = swSel;
+
+  /*
+   * "Man" switch
+   * Sets the status of the switch as fast as possible.
+   * This is a toggle switch.
+   */
+  static long int manFallTime = 0;
+  static long int manRiseTime = 0;
+  static bool manPrevValue = true;
+  if(manPrevValue && !swMan){
+    //Falling edge
+    manFallTime = millis();    
+  }else if(!manPrevValue && swMan){
+    //Rising edge
+    manRiseTime = millis();
+  }
+  if(swMan && (millis()-manRiseTime > MIN_PRESS_DURATION) ){
+    swManStat = false; //prog mode
+  }else if(swMan && (millis()-manFallTime > MIN_PRESS_DURATION) ){
+    swManStat = true; //man mode 
+  }
+
+  manPrevValue = swMan;
+   
 }
 
 ISR(PCINT3_vect){
-  swBack = PORTE & (1 << PE0);
-  swNew = PORTE & (1 << PE1);
+  bool swBack = (PORTE & (1 << PE0)) != 0;
+  bool swNew = (PORTE & (1 << PE1)) != 0;
   lastActivity = millis();
+
+  /*
+   * "Back" switch
+   * Sets the status of the switch as fast as possible.
+   * We do not have to distinguish between long and short presses.
+   */
+  static long int backFallTime = 0;
+  static bool backPrevValue = false;
+  if(backPrevValue && !swBack){
+    //Falling edge
+    backFallTime = millis();
+  }
+  if(!swBack &&
+      (millis()-backFallTime > MIN_PRESS_DURATION) ){
+    swBackStat = true;
+  }
+  backPrevValue = swBack;
+
+  /*
+   * "New" switch
+   * Sets the status of the switch as fast as possible.
+   * We do not have to distinguish between long and short presses.
+   */
+  static long int newFallTime = 0;
+  static bool newPrevValue = false;
+  if(newPrevValue && !swNew){
+    //Falling edge
+    newFallTime = millis();
+  }
+  if(!swNew &&
+      (millis()-newFallTime > MIN_PRESS_DURATION) ){
+    swNewStat = true;
+  }
+  newPrevValue = swNew;
+  
 }
 
 void loop() {
@@ -104,43 +204,33 @@ void loop() {
    * update menu state
    * refresh screen
    */
-  long int knobVal = knob.readAndReset();
+  long int knobVal = knob.read(); knob.write(0);
+  static long unsigned int lastRTCRead = 0;
+  static unsigned short int prevDow = dow;
+  
+  if(millis() - lastRTCRead > RTC_UPDATE_INTERVAL){
+    if(getRTCTime(&dow, &timeH, &timeM) == true){
+      lastRTCRead = millis();  
+    }
+    if(dow != prevDow){
+      //TODO : Update table
+      prevDow = dow;
+    }
+  }
+
+  
   if(knobVal != 0){
     lastActivity = millis();
   }
   
-  processSwitches();
-
   /* checks if we have to shutdown LCD */
   if(millis() - lastActivity >= LCD_TIMEOUT){
-    digitalWrite(D6, LOW);
+    digitalWrite(PIN_PD6, LOW);
   }else{
-    digitalWrite(D6, HIGH);
+    digitalWrite(PIN_PD6, HIGH);
   }
-
-
-
   
-
-}
-
-void processSwitches(){
-  static long int selRiseTime = 0;
-  static bool selPrevValue = false;
-  if(selPrevValue == false && swSel == true){
-    //Rising edge
-    selRiseTime = millis();    
-  }else if(selPrevValue == true && swSel == false){
-    //Falling edge
-    if(millis()-selRiseTime < LONG_PRESS_DURATION && millis()-selRiseTime > MIN_PRESS_DURATION){
-      swSel = 1;
-    }
-  }else if(millis()-selRiseTime > LONG_PRESS_DURATION){
-    swSel = 2;
-  }
-  selPrevValue = 
-
-  
+  updateMenu(knobVal, swSelStat, swBackStat, swNewStat);
 }
 
 /*
@@ -155,7 +245,7 @@ void processSwitches(){
  * True if successful 
  * False otherwise
  */
-bool setRTCTime(bcd dd, bcd hh, bcd mm){
+bool setRTCTime(uint8_t dd, uint8_t hh, uint8_t mm){
   if(dd >= 7 || hh >= 24 || mm >= 60){
     return false;
   }
@@ -171,15 +261,15 @@ bool setRTCTime(bcd dd, bcd hh, bcd mm){
 
 /*
  * Querries the time (Day of the weeh, hour and minutes) from the RTC module.
- *  *dd pointer to bcd. Will contain the day of the week after calling the function
- *  *hh pointer to bcd. Will contain the hour after calling the function
- *  *mm pointer to bcd. Will contain the minutes after calling the function
+ *  *dd pointer to bcd. Will contain the day of the week after the call
+ *  *hh pointer to bcd. Will contain the hour after the call
+ *  *mm pointer to bcd. Will contain the minutes after the call
  *  
  *  Returns:
  *  True if successful
  *  False otherwise
  */
-bool getRTCTime(bcd *dd, bcd *hh, bcd *mm){
+bool getRTCTime(uint8_t *dd, uint8_t *hh, uint8_t *mm){
   /* Set address pointer to 0x01 */
   Wire.beginTransmission(RTC_ADD);
   Wire.write(0x01);
@@ -230,4 +320,87 @@ bool enableRTC(){
     return false;
   }
   return true;
+}
+
+void updateMenu(const long int knobVal, const char swSel, const bool swBack, const bool swNew, short unsigned int &counter ){
+
+  // Check if multiple button where pressed at once. We cannot manage  
+  // that case and return
+  if( ((knobVal != 0) && (swSel != 0)) ||
+      ((knobVal != 0) && (swBack!= 0)) ||
+      ((knobVal != 0) && (swNew != 0)) ||
+      ((swSel != 0) && (swBack != 0)) ||
+      ((swSel != 0) && (swNew != 0)) ||
+      ((swBack != 0) && (swNew != 0)) ){
+        return;
+      }
+
+  /*
+   * Menu state machine
+   */
+  switch(menu){
+    case SETTINGS:
+      if(knobVal != 0){
+        menu = SCHEDULE;
+      }else if(swSel == true){
+        menu = TIME;
+      }
+      break;
+    case TIME:
+      if(knobVal > 0){
+        menu = DAY;
+      }else if(knobVal < 0){
+        menu = RESET;
+      }else if(swSel){
+        menu = TIME_HH;
+        counter = 0;
+      }else if(swBack){
+        menu = SETTINGS;
+      }
+      break;
+    case TIME_HH:
+      break;
+    case TIME_MM:
+      break;
+    case DAY:
+      break;
+    case DAY_DD:
+      break;
+    case RESET:
+      break;
+    case RESET_CONFIRM:
+      break;
+    case SCHEDULE:
+      break;
+    case MON:
+      break;
+    case TUE:
+      break;
+    case WED:
+      break;
+    case THU:
+      break;
+    case FRI:
+      break;
+    case SAT:
+      break;
+    case SUN:
+      break;
+    case PT_SEL:
+      break;
+    case PT_EDIT:
+      break;
+    case PT_DEL:
+      break;
+    case PT_DEL_CONF:
+      break;
+    case PT_NEW:
+      break;
+    case PT_NEW_HH:
+      break;
+    case PT_NEW_MM:
+      break;
+    case PT_NEW_DC:
+      break;
+  }
 }
