@@ -6,24 +6,30 @@
  */
 
 #define FW_VERSION "1.0.0"
-
+#define ENGLISH
 #include <LiquidCrystal.h>
 #define ENCODER_USE_INTERRUPTS
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h>
+#include "strings.h"
+#include "daySchedule.h"
 
 #define RTC_ADD 0b1101111         
 #define LCD_TIMEOUT 30000         //30_000ms = 30s
 #define LONG_PRESS_DURATION 1000  //1000ms = 1s
 #define MIN_PRESS_DURATION 50     //50 ms
 #define RTC_UPDATE_INTERVAL 10000 //10_000ms = 10s
+#define SEL_SHORT 1
+#define SEL_LONG 2
 
 typedef unsigned short int bcd;
 
 LiquidCrystal lcd(PIN_PB2, PIN_PB1, PIN_PB0, PIN_PC0, PIN_PD7, PIN_PD0, PIN_PC1,
                   PIN_PD4, PIN_PD1, PIN_PC2, PIN_PC3);
 Encoder knob(PIN_PD2, PIN_PD3);
+
+DaySchedule schedule(0);
 
 volatile bool deviceSleeping = false;
 volatile unsigned long int lastActivity = 0;
@@ -39,9 +45,9 @@ enum menuState : char {SETTINGS, TIME, TIME_HH, TIME_MM, DAY, DAY_DD, RESET,
 
 menuState menu = SETTINGS;                       
 
-unsigned short int timeH = 0;
-unsigned short int timeM = 0;
-unsigned short int dow = 0;
+unsigned char timeH = 0;
+unsigned char timeM = 0;
+unsigned char dow = 0;
 
 void setup() {
   /* Rot switch :
@@ -92,7 +98,16 @@ void setup() {
 
   enableRTC();
 
-  //Load data points
+  //Fetch the time from the RTC
+  if(!getRTCTime(dow, timeH, timeM)){
+    //There was an error fetching time from the RTC.
+    lcd.setCursor(0, 0);
+    lcd.write("RTC ERROR");
+    while(true){}
+  }
+
+  // Load data points for today
+  schedule.changeDay(dow);
   
   /*
    * Enabling PinChangeInterrupt
@@ -123,11 +138,11 @@ ISR(PCINT0_vect){
     //Rising edge
     if( (millis()-selFallTime < LONG_PRESS_DURATION) &&
         (millis()-selFallTime > MIN_PRESS_DURATION) ){
-      swSelStat = 1; //Short press
+      swSelStat = SEL_SHORT; //Short press
     }
   }else if(!swSel &&
             (millis()-selFallTime > LONG_PRESS_DURATION)){
-    swSelStat = 2; //Long press
+    swSelStat = SEL_LONG; //Long press
   }
   selPrevValue = swSel;
 
@@ -207,13 +222,14 @@ void loop() {
   long int knobVal = knob.read(); knob.write(0);
   static long unsigned int lastRTCRead = 0;
   static unsigned short int prevDow = dow;
-  
+
+  //Check if we have to fetch time from RTC
   if(millis() - lastRTCRead > RTC_UPDATE_INTERVAL){
-    if(getRTCTime(&dow, &timeH, &timeM) == true){
+    if(getRTCTime(dow, timeH, timeM) == true){
       lastRTCRead = millis();  
     }
     if(dow != prevDow){
-      //TODO : Update table
+      schedule.changeDay(dow);
       prevDow = dow;
     }
   }
@@ -245,7 +261,7 @@ void loop() {
  * True if successful 
  * False otherwise
  */
-bool setRTCTime(uint8_t dd, uint8_t hh, uint8_t mm){
+bool setRTCTime(const uint8_t dd, const uint8_t hh, const uint8_t mm){
   if(dd >= 7 || hh >= 24 || mm >= 60){
     return false;
   }
@@ -269,7 +285,7 @@ bool setRTCTime(uint8_t dd, uint8_t hh, uint8_t mm){
  *  True if successful
  *  False otherwise
  */
-bool getRTCTime(uint8_t *dd, uint8_t *hh, uint8_t *mm){
+bool getRTCTime(uint8_t &dd, uint8_t &hh, uint8_t &mm){
   /* Set address pointer to 0x01 */
   Wire.beginTransmission(RTC_ADD);
   Wire.write(0x01);
@@ -281,11 +297,11 @@ bool getRTCTime(uint8_t *dd, uint8_t *hh, uint8_t *mm){
   while(Wire.available()){
     char c = Wire.read();
     if(counter == 0){ //Minutes
-      *mm = ((c & 0b01110000)>>4)*10 + (c & 0b00001111);
+      mm = ((c & 0b01110000)>>4)*10 + (c & 0b00001111);
     }else if(counter == 1){ // Hours
-      *hh = ((c & 0b00110000)>>4)*10 + (c & 0b00001111);
+      hh = ((c & 0b00110000)>>4)*10 + (c & 0b00001111);
     }else if(counter == 2){ // Day of the week
-      *dd = (c & 0b00000111);
+      dd = (c & 0b00000111);
     }
     counter++;
   }
@@ -322,8 +338,7 @@ bool enableRTC(){
   return true;
 }
 
-void updateMenu(const long int knobVal, const char swSel, const bool swBack, const bool swNew, short unsigned int &counter ){
-
+void updateMenu(const long int knobVal, const char swSel, const bool swBack, const bool swNew){
   // Check if multiple button where pressed at once. We cannot manage  
   // that case and return
   if( ((knobVal != 0) && (swSel != 0)) ||
@@ -335,6 +350,9 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
         return;
       }
 
+  char line1[17];
+  char line2[17];
+  signed char counter = 0;
   /*
    * Menu state machine
    */
@@ -342,33 +360,124 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
     case SETTINGS:
       if(knobVal != 0){
         menu = SCHEDULE;
-      }else if(swSel == true){
+      }else if(swSel == SEL_SHORT){
         menu = TIME;
       }
+      line1[0]='\0';
+      sprintf(line2,STR_SETTINGS);
       break;
     case TIME:
       if(knobVal > 0){
         menu = DAY;
       }else if(knobVal < 0){
         menu = RESET;
-      }else if(swSel){
+      }else if(swSel == SEL_SHORT){
         menu = TIME_HH;
-        counter = 0;
+        counter = timeH;
       }else if(swBack){
         menu = SETTINGS;
       }
+      sprintf(line1, STR_SETTINGS);
+      sprintf(line2, STR_TIME);
       break;
     case TIME_HH:
+      if(knobVal != 0){
+        counter = (counter + knobVal + 120)%24;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(dow, counter, timeM) == true){
+          timeH = counter;
+        }
+        menu = TIME_MM;
+        counter = timeM;
+      }else if(swBack == true){
+        menu = TIME;
+      }
+      sprintf(line1, STR_TIME);
+      sprintf(line2, "%hdh", counter);
       break;
     case TIME_MM:
+      if(knobVal != 0){
+        counter = (counter + knobVal + 120)%60;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(dow, timeH, counter) == true){
+          timeM = counter;
+        }
+        menu = TIME;
+      }else if(swBack == true){
+        menu = TIME;
+      }
+      sprintf(line1, STR_TIME);
+      sprintf(line2, "%hdmin", counter);
       break;
     case DAY:
+      if(knobVal > 0){
+        menu = RESET;
+      }else if(knobVal < 0){
+        menu = TIME;
+      }else if(swSel == SEL_SHORT){
+        menu = DAY_DD;
+        counter = dow;
+      }else if(swBack){
+        menu = SETTINGS;
+      }
+      sprintf(line1, STR_SETTINGS);
+      sprintf(line2, STR_DAY);
       break;
     case DAY_DD:
+      if(knobVal != 0){
+        counter = (counter + knobval + 70)%7;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(counter, timeH, timeM)){
+          dow = counter;
+        }
+        menu = DAY;
+      }else if(swBack == true){
+        menu = DAY;
+      }
+      sprintf(line1, STR_DAY);
+      switch(counter){
+        case MONDAY:
+          sprintf(line2, "%s", STR_MON);
+          break;
+        case TUESDAY:
+          sprintf(line2, "%s", STR_TUE);
+          break;
+        case WEDNESDAY:
+          sprintf(line2, "%s", STR_WED);
+          break;
+        case THURSDAY:
+          sprintf(line2, "%s", STR_THU);
+          break;
+        case FRIDAY:
+          sprintf(line2, "%s", STR_FRI);
+          break;
+        case SATURDAY:
+          sprintf(line2, "%s", STR_SAT);
+          break;
+        case SUNDAY:
+          sprintf(line2, "%s", STR_SUN);
+          break;
+        default:
+          sprintf(line2, "%s", STR_ERROR);
+          break;
+      }
       break;
     case RESET:
+      if(knobVal < 0){
+        menu = DAY;
+      }else if(knobVal > 0){
+        menu = TIME;
+      }else if(swSel == SEL_SHORT){
+        menu = RESET_CONFIRM;
+        counter = dow;
+      }else if(swBack){
+        menu = SETTINGS;
+      }
+      sprintf(line1, STR_SETTINGS);
+      sprintf(line2, "%s?", STR_RESET);
       break;
     case RESET_CONFIRM:
+    
       break;
     case SCHEDULE:
       break;
