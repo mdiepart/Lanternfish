@@ -35,6 +35,7 @@ class DaySchedule{
     bool delPoint(unsigned char pos);
     bool changeDay(unsigned char day);
     bool save();
+    void reset();
     
 };
 

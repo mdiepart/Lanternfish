@@ -12,6 +12,7 @@
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h>
+#include <String.h>
 #include "strings.h"
 #include "daySchedule.h"
 
@@ -350,8 +351,8 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
         return;
       }
 
-  char line1[17];
-  char line2[17];
+  String line1;
+  String line2;
   signed char counter = 0;
   /*
    * Menu state machine
@@ -363,8 +364,8 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swSel == SEL_SHORT){
         menu = TIME;
       }
-      line1[0]='\0';
-      sprintf(line2,STR_SETTINGS);
+      line1 ="";
+      line2 = STR_SETTINGS;
       break;
     case TIME:
       if(knobVal > 0){
@@ -377,8 +378,8 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack){
         menu = SETTINGS;
       }
-      sprintf(line1, STR_SETTINGS);
-      sprintf(line2, STR_TIME);
+      line1 = STR_SETTINGS;
+      line2 = STR_TIME;
       break;
     case TIME_HH:
       if(knobVal != 0){
@@ -392,8 +393,9 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack == true){
         menu = TIME;
       }
-      sprintf(line1, STR_TIME);
-      sprintf(line2, "%hdh", counter);
+      line1 = STR_TIME;
+      line2 = String(counter) + "h";
+      //sprintf(line2, "%hdh", counter);
       break;
     case TIME_MM:
       if(knobVal != 0){
@@ -406,8 +408,9 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack == true){
         menu = TIME;
       }
-      sprintf(line1, STR_TIME);
-      sprintf(line2, "%hdmin", counter);
+      line1 = STR_TIME;
+      line2 = String(counter) + "min";
+      //sprintf(line2, "%hdmin", counter);
       break;
     case DAY:
       if(knobVal > 0){
@@ -420,12 +423,12 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack){
         menu = SETTINGS;
       }
-      sprintf(line1, STR_SETTINGS);
-      sprintf(line2, STR_DAY);
+      line1 = STR_SETTINGS;
+      line2 = STR_DAY;
       break;
     case DAY_DD:
       if(knobVal != 0){
-        counter = (counter + knobval + 70)%7;
+        counter = (counter + knobVal + 70)%7;
       }else if(swSel == SEL_SHORT){
         if(setRTCTime(counter, timeH, timeM)){
           dow = counter;
@@ -434,31 +437,31 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack == true){
         menu = DAY;
       }
-      sprintf(line1, STR_DAY);
+      line1 = STR_DAY;
       switch(counter){
         case MONDAY:
-          sprintf(line2, "%s", STR_MON);
+          line2 = STR_MON;
           break;
         case TUESDAY:
-          sprintf(line2, "%s", STR_TUE);
+          line2 = STR_TUE;
           break;
         case WEDNESDAY:
-          sprintf(line2, "%s", STR_WED);
+          line2 = STR_WED;
           break;
         case THURSDAY:
-          sprintf(line2, "%s", STR_THU);
+          line2 = STR_THU;
           break;
         case FRIDAY:
-          sprintf(line2, "%s", STR_FRI);
+          line2 = STR_FRI;
           break;
         case SATURDAY:
-          sprintf(line2, "%s", STR_SAT);
+          line2 = STR_SAT;
           break;
         case SUNDAY:
-          sprintf(line2, "%s", STR_SUN);
+          line2 = STR_SUN;
           break;
         default:
-          sprintf(line2, "%s", STR_ERROR);
+          line2 = STR_ERROR;
           break;
       }
       break;
@@ -473,15 +476,58 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       }else if(swBack){
         menu = SETTINGS;
       }
-      sprintf(line1, STR_SETTINGS);
-      sprintf(line2, "%s?", STR_RESET);
+      line1 = STR_SETTINGS;
+      line2 = String(STR_RESET) + "?";
       break;
     case RESET_CONFIRM:
-    
+      if(swSel == SEL_LONG){
+        for(unsigned char i = 0; i <= 6; i++){
+          schedule.changeDay(i);
+          schedule.reset();
+          schedule.save();
+        }
+      }else if(swBack == true){
+        menu = RESET;
+      }
+      line1 = STR_CONF;
+      line2 = STR_LP_CONF;
       break;
     case SCHEDULE:
+      if(knobVal != 0){
+        menu = SETTINGS;
+      }else if(swSel == SEL_SHORT){
+        switch(dow){
+          case MONDAY:
+            menu = MON;
+            break;
+          case TUESDAY:
+            menu = TUE;
+            break;
+          case WEDNESDAY:
+            menu = WED;
+            break;
+          case THURSDAY:
+            menu = THU;
+            break;
+          case FRIDAY:
+            menu = FRI;
+            break;
+          case SATURDAY:
+            menu = SAT;
+            break;
+          case SUNDAY:
+            menu = SUN;
+            break;
+          default:
+            menu = MON;
+            break;
+        }
+      }
+      line1 ="";
+      line2 = STR_SCHEDULE;
       break;
     case MON:
+    
       break;
     case TUE:
       break;

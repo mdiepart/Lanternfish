@@ -14,6 +14,11 @@
   #define STR_SAT     "Saturday"
   #define STR_SUN     "Sunday"
   #define STR_RESET   "Reset"
+  #define STR_CONF    "Confirm"
+  #define STR_LP_CONF "Long press to confirm"
+  #define STR_SCHEDULE "Schedule"
+
+
 #elif defined(FRENCH)
   #define STR_ERROR     "ERREUR"
 	#define STR_SETTINGS 	"Paramètres"
@@ -26,7 +31,10 @@
   #define STR_FRI     "Vendredi"
   #define STR_SAT     "Samedi"
   #define STR_SUN     "Dimanche"
-  #define STR_RESET   "Reset"
+  #define STR_RESET   "Réinitialisation"
+  #define STR_CONF    "Confirmer"
+  #define STR_LP_CONF "Appui long pour confirmer"
+  #define STR_SCHEDULE "Planning"
 
 #endif
 

@@ -177,3 +177,12 @@ bool DaySchedule::save(){
 void DaySchedule::setSize(unsigned char n){
     nbPts = n;
 }
+
+void DaySchedule::reset(){
+  for(unsigned char i = 0; i < getSize(); i++){
+    ptHour[i] = 0;
+    ptMin[i] = 0;
+    ptDC[i] = 0;
+  }
+  setSize(0);
+}
