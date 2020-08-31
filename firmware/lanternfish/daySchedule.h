@@ -12,9 +12,9 @@
 #define SUNDAY 6
 
 typedef struct s_point{
-  unsigned char h;
-  unsigned char m;
-  unsigned char dc;
+  unsigned char h; //Hour
+  unsigned char m; //Minutes
+  unsigned char dc; //Duty cycle
 } point;
 
 class DaySchedule{
@@ -28,7 +28,7 @@ class DaySchedule{
     void setSize(unsigned char n);
 
   public:
-    DaySchedule(unsigned char dow);
+    DaySchedule(unsigned char dayOfWeek);
     unsigned char getSize() const;
     point getPoint(unsigned char pos) const;
     bool addPoint(point pt);

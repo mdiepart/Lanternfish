@@ -2,11 +2,16 @@
 #include "daySchedule.h"
 #include <EEPROM.h>
 
-DaySchedule::DaySchedule(unsigned char dow){
+DaySchedule::DaySchedule(unsigned char dayOfWeek){
   nbPts = 0;
   dow = MONDAY;
+  changeDay(dow);
 }
 
+/*
+ * Returns the number of points in the selected schedule
+ *
+ */
 unsigned char DaySchedule::getSize() const{
   return nbPts;
 }
