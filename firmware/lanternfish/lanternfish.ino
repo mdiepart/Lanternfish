@@ -63,7 +63,7 @@ typedef struct{
   };
   unsigned char daySelected = MONDAY;
   unsigned char point = 0;
-  point schedulePoint = point();
+  point schedulePoint = point(); //Used when adding / editing point
   
   
 } menuState;
@@ -447,34 +447,62 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       line2 = STR_SCHEDULE;
       break;
     case MON:
-      line1 = "";
-      line2 = STR_MON;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_MON;
       break;
     case TUE:
-      line1 = "";
-      line2 = STR_TUE;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_TUE;
       break;
     case WED:
-      line1 = "";
-      line2 = STR_WED;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_WED;
       break;
     case THU:
-      line1 = "";
-      line2 = STR_THU;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_THU;
       break;
     case FRI:
-      line1 = "";
-      line2 = STR_FRI;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_FRI;
       break;
     case SAT:
-      line1 = "";
-      line2 = STR_SAT;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_SAT;
       break;
     case SUN:
-      line1 = "";
-      line2 = STR_SUN;
+      line1 = STR_SCHEDULE;
+      line2 = String(">") + STR_SUN;
       break;
     case PT_SEL:
+        switch(menu.daySelected){
+          case MONDAY:
+            line1 = STR_MON;
+            break;
+          case TUESDAY:
+            line1 = STR_TUE;
+            break;
+          case WEDNESDAY:
+            line1 = STR_WED;
+            break;
+          case THURSDAY:
+            line1 = STR_THU;
+            break;
+          case FRIDAY:
+            line1 = STR_FRI;
+            break;
+          case SATURDAY:
+            line1 = STR_SAT;
+            break;
+          case SUNDAY:
+            line1 = STR_SUN;
+            break;
+          default:
+            line1 = STR_ERROR;
+            break;
+        }
+        line1 = String(line1)+  " " + menu.point + "/" + menu.editionSchedule.getSize();
+        line2 = String(editionSchedule.getPoint(menu.point).hh)
       break;
     case PT_EDIT:
       break;
