@@ -1,3 +1,4 @@
+
 /*
  * ATMega 328PB
  * Clock @ 8MHz (Internal)
@@ -39,16 +40,37 @@ volatile bool swNewStat = 0;
 volatile bool swManStat = 0; //false = prog mode, true = man mode
 volatile char swSelStat = 0; //0 = default state; 1 = short press; 2 = long press
 
-enum menuState : char {SETTINGS, TIME, TIME_HH, TIME_MM, DAY, DAY_DD, RESET,
+enum menuFSM : char {SETTINGS, TIME, TIME_HH, TIME_MM, DAY, DAY_DD, RESET,
                       RESET_CONFIRM, SCHEDULE, MON, TUE, WED, THU, FRI, SAT,
                       SUN, PT_SEL, PT_EDIT, PT_DEL, PT_DEL_CONF, PT_NEW,
                       PT_NEW_HH, PT_NEW_MM, PT_NEW_DC};
 
-menuState menu = SETTINGS;                       
 
-unsigned char timeH = 0;
-unsigned char timeM = 0;
-unsigned char dow = 0;
+typedef struct{
+  //Finite state machine
+  menuFSM fsm = SCHEDULE;
+  
+  //Schedule used for edition
+  DaySchedule editionSchedule = DaySchedule(MONDAY);
+  
+  //To pass values
+  union{
+    unsigned char counter = 0;
+    unsigned char mm;
+    unsigned char hh;
+    unsigned char dd;
+    unsigned char dc; //duty cycle
+  };
+  unsigned char daySelected = MONDAY;
+  unsigned char point = 0;
+  point schedulePoint = point();
+  
+  
+} menuState;
+
+unsigned char _timeH = 0;
+unsigned char _timeM = 0;
+unsigned char _dow = 0;
 
 void setup() {
   /* Rot switch :
@@ -118,7 +140,6 @@ void setup() {
   PCIFR = 0;
   PCICR = 0b00001001;
 }
-
 
 ISR(PCINT0_vect){
   bool swMan = (PORTB & (1 << PB7)) != 0;
@@ -350,94 +371,207 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       ((swBack != 0) && (swNew != 0)) ){
         return;
       }
+  static menuState menu{SCHEDULE, DaySchedule(0), 0, 0};
 
+  updateMenuState(menu, knobVal, swSel, swBack, swNew);
+  
+  if(menu.updateSchedule == true){
+      menu.updateSchedule = false;
+  }
   String line1;
   String line2;
-  signed char counter = 0;
-  /*
-   * Menu state machine
-   */
-  switch(menu){
+
+
+  switch(fsm){
     case SETTINGS:
-      if(knobVal != 0){
-        menu = SCHEDULE;
-      }else if(swSel == SEL_SHORT){
-        menu = TIME;
-      }
       line1 ="";
       line2 = STR_SETTINGS;
       break;
     case TIME:
-      if(knobVal > 0){
-        menu = DAY;
-      }else if(knobVal < 0){
-        menu = RESET;
-      }else if(swSel == SEL_SHORT){
-        menu = TIME_HH;
-        counter = timeH;
-      }else if(swBack){
-        menu = SETTINGS;
-      }
       line1 = STR_SETTINGS;
       line2 = STR_TIME;
       break;
     case TIME_HH:
-      if(knobVal != 0){
-        counter = (counter + knobVal + 120)%24;
-      }else if(swSel == SEL_SHORT){
-        if(setRTCTime(dow, counter, timeM) == true){
-          timeH = counter;
-        }
-        menu = TIME_MM;
-        counter = timeM;
-      }else if(swBack == true){
-        menu = TIME;
-      }
       line1 = STR_TIME;
-      line2 = String(counter) + "h";
+      line2 = String(menu.hh) + "h";
       //sprintf(line2, "%hdh", counter);
       break;
     case TIME_MM:
-      if(knobVal != 0){
-        counter = (counter + knobVal + 120)%60;
-      }else if(swSel == SEL_SHORT){
-        if(setRTCTime(dow, timeH, counter) == true){
-          timeM = counter;
-        }
-        menu = TIME;
-      }else if(swBack == true){
-        menu = TIME;
-      }
       line1 = STR_TIME;
-      line2 = String(counter) + "min";
+      line2 = String(menu.mm) + "min";
       //sprintf(line2, "%hdmin", counter);
       break;
     case DAY:
-      if(knobVal > 0){
-        menu = RESET;
-      }else if(knobVal < 0){
-        menu = TIME;
-      }else if(swSel == SEL_SHORT){
-        menu = DAY_DD;
-        counter = dow;
-      }else if(swBack){
-        menu = SETTINGS;
-      }
       line1 = STR_SETTINGS;
       line2 = STR_DAY;
       break;
     case DAY_DD:
-      if(knobVal != 0){
-        counter = (counter + knobVal + 70)%7;
-      }else if(swSel == SEL_SHORT){
-        if(setRTCTime(counter, timeH, timeM)){
-          dow = counter;
-        }
-        menu = DAY;
-      }else if(swBack == true){
-        menu = DAY;
-      }
       line1 = STR_DAY;
+      switch(menu.dd){
+        case MONDAY:
+          line2 = STR_MON;
+          break;
+        case TUESDAY:
+          line2 = STR_TUE;
+          break;
+        case WEDNESDAY:
+          line2 = STR_WED;
+          break;
+        case THURSDAY:
+          line2 = STR_THU;
+          break;
+        case FRIDAY:
+          line2 = STR_FRI;
+          break;
+        case SATURDAY:
+          line2 = STR_SAT;
+          break;
+        case SUNDAY:
+          line2 = STR_SUN;
+          break;
+        default:
+          line2 = STR_ERROR;
+          break;
+      }
+      break;
+    case RESET:
+      line1 = STR_SETTINGS;
+      line2 = String(STR_RESET) + "?";
+      break;
+    case RESET_CONFIRM:
+      line1 = STR_CONF;
+      line2 = STR_LP_CONF;
+      break;    
+    case SCHEDULE:
+      line1 ="";
+      line2 = STR_SCHEDULE;
+      break;
+    case MON:
+      line1 = "";
+      line2 = STR_MON;
+      break;
+    case TUE:
+      line1 = "";
+      line2 = STR_TUE;
+      break;
+    case WED:
+      line1 = "";
+      line2 = STR_WED;
+      break;
+    case THU:
+      line1 = "";
+      line2 = STR_THU;
+      break;
+    case FRI:
+      line1 = "";
+      line2 = STR_FRI;
+      break;
+    case SAT:
+      line1 = "";
+      line2 = STR_SAT;
+      break;
+    case SUN:
+      line1 = "";
+      line2 = STR_SUN;
+      break;
+    case PT_SEL:
+      break;
+    case PT_EDIT:
+      break;
+    case PT_DEL:
+      break;
+    case PT_DEL_CONF:
+      break;
+    case PT_NEW:
+      break;
+    case PT_NEW_HH:
+      break;
+    case PT_NEW_MM:
+      break;
+    case PT_NEW_DC:
+      break;
+  }
+}
+
+void updateMenuFSM(menuState &menuState, const long int knobVal, const char swSel, const bool swBack, const bool swNew){
+  // Check if multiple button where pressed at once. We cannot manage  
+  // that case and return
+  if( ((knobVal != 0) && (swSel != 0)) ||
+      ((knobVal != 0) && (swBack!= 0)) ||
+      ((knobVal != 0) && (swNew != 0)) ||
+      ((swSel != 0) && (swBack != 0)) ||
+      ((swSel != 0) && (swNew != 0)) ||
+      ((swBack != 0) && (swNew != 0)) ){
+        return;
+      }
+  
+  /*
+   * Menu state machine
+   */
+  switch(menu.fsm){
+    case SETTINGS:
+      if(knobVal != 0){
+        menu.fsm = SCHEDULE;
+      }else if(swSel == SEL_SHORT){
+        menu.fsm = TIME;
+      }
+      break;
+    case TIME:
+      if(knobVal > 0){
+        menu.fsm = DAY;
+      }else if(knobVal < 0){
+        menu.fsm = RESET;
+      }else if(swSel == SEL_SHORT){
+        menu.hh = _timeH;
+        menu.fsm = TIME_HH;
+      }else if(swBack){
+        menu.fsm = SETTINGS;
+      }
+      break;
+    case TIME_HH:
+      if(knobVal != 0){
+        menu.hh = (knobVal + menu.hh + 120)%24;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(_dow, menu.hh, _timeM) == true){
+          _timeH = menu.hh;
+        }
+        menu.mm = _timeM;
+        menu.fsm = TIME_MM;
+      }
+      break;
+    case TIME_MM:
+      if(knobVal != 0){
+        menu.mm = (knobVal + menu.mm + 120)%60;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(_dow, _timeH, menu.mm) == true){
+          _timeM = menu.mm;
+        }
+        menu.fsm = TIME;
+      }
+      break;
+    case DAY:
+      if(knobVal > 0){
+        menu.fsm = RESET;
+      }else if(knobVal < 0){
+        menu.fsm = TIME;
+      }else if(swSel == SEL_SHORT){
+        menu.fsm = DAY_DD;
+        menu.dd = _dow;
+      }else if(swBack){
+        menu.fsm = SETTINGS;
+      }
+      break;
+    case DAY_DD:
+      if(knobVal != 0){
+        menu.dd = (knobVal + menu.dd + 70)%7;
+      }else if(swSel == SEL_SHORT){
+        if(setRTCTime(menu.dd, _timeH, _timeM)){
+          _dow = menu.dd;
+        }
+        menu.fsm = DAY;
+      }else if(swBack == true){
+        menu.fsm = DAY;
+      }
       switch(counter){
         case MONDAY:
           line2 = STR_MON;
@@ -467,17 +601,14 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
       break;
     case RESET:
       if(knobVal < 0){
-        menu = DAY;
+        menu.fsm = DAY;
       }else if(knobVal > 0){
-        menu = TIME;
+        menu.fsm = TIME;
       }else if(swSel == SEL_SHORT){
-        menu = RESET_CONFIRM;
-        counter = dow;
+        menu.fsm = RESET_CONFIRM;
       }else if(swBack){
-        menu = SETTINGS;
+        menu.fsm = SETTINGS;
       }
-      line1 = STR_SETTINGS;
-      line2 = String(STR_RESET) + "?";
       break;
     case RESET_CONFIRM:
       if(swSel == SEL_LONG){
@@ -486,76 +617,237 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
           schedule.reset();
           schedule.save();
         }
+        menu.fsm = SCHEDULE;
       }else if(swBack == true){
-        menu = RESET;
+        menu.fsm = RESET;
       }
-      line1 = STR_CONF;
-      line2 = STR_LP_CONF;
       break;
     case SCHEDULE:
       if(knobVal != 0){
-        menu = SETTINGS;
+        menu.fsm = SETTINGS;
       }else if(swSel == SEL_SHORT){
-        switch(dow){
+        switch(_dow){
           case MONDAY:
-            menu = MON;
+            menu.fsm = MON;
             break;
           case TUESDAY:
-            menu = TUE;
+            menu.fsm = TUE;
             break;
           case WEDNESDAY:
-            menu = WED;
+            menu.fsm = WED;
             break;
           case THURSDAY:
-            menu = THU;
+            menu.fsm = THU;
             break;
           case FRIDAY:
-            menu = FRI;
+            menu.fsm = FRI;
             break;
           case SATURDAY:
-            menu = SAT;
+            menu.fsm = SAT;
             break;
           case SUNDAY:
-            menu = SUN;
+            menu.fsm = SUN;
             break;
           default:
-            menu = MON;
+            menu.fsm = MON;
             break;
         }
       }
-      line1 ="";
-      line2 = STR_SCHEDULE;
       break;
     case MON:
-    
+      if(knobVal > 0){
+        menu.fsm = TUE;
+      }else if(knobVal < 0){
+        menu.fsm = SUN;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(MONDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case TUE:
+      if(knobVal > 0){
+        menu.fsm = WED;
+      }else if(knobVal < 0){
+        menu.fsm = MON;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(TUESDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case WED:
+      if(knobVal > 0){
+        menu.fsm = THU;
+      }else if(knobVal < 0){
+        menu.fsm = TUE;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(WEDNESDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case THU:
+      if(knobVal > 0){
+        menu.fsm = FRI;
+      }else if(knobVal < 0){
+        menu.fsm = WED;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(THURSDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case FRI:
+      if(knobVal > 0){
+        menu.fsm = SAT;
+      }else if(knobVal < 0){
+        menu.fsm = THU;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(FRIDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case SAT:
+      if(knobVal > 0){
+        menu.fsm = SUN;
+      }else if(knobVal < 0){
+        menu.fsm = FRI;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(SATURDAY);
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case SUN:
+      if(knobVal > 0){
+        menu.fsm = MON;
+      }else if(knobVal < 0){
+        menu.fsm = SAT;
+    }else if(swSel == SEL_SHORT){
+        menu.editionSchedule.changeDay(SUNDAY);
+        menu.point = 0;
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = SCHEDULE;
+      }
       break;
     case PT_SEL:
+      if(knobVal != 0){
+        menu.point = (knobVal + menu.point + 70)%editionSchedule.getSize();
+    }else if(swSel == SEL_SHORT){
+        menu.schedulePoint = editionSchedule.getPoint(menu.point);
+        menu.dc = menu.schedulePoint.dc;
+        menu.fsm = PT_EDIT;
+    }else if(swSel == SEL_LONG){
+        menu.fsm =  PT_DEL;
+    }else if(swBack){
+        switch(menu.daySelected){
+          case MONDAY:
+            menu.fsm = MON;
+            break;
+          case TUESDAY:
+            menu.fsm = TUE;
+            break;
+          case WEDNESDAY:
+            menu.fsm = WED;
+            break;
+          case THURSDAY:
+            menu.fsm = THU;
+            break;
+          case FRIDAY:
+            menu.fsm = FRI;
+            break;
+          case SATURDAY:
+            menu.fsm = SAT;
+            break;
+          case SUNDAY:
+            menu.fsm = SUN;
+            break;
+          default:
+            menu.fsm = MON;
+            break;
+        } 
+    }else if(swNew){
+        menu.fsm = PT_NEW;
+    }
       break;
     case PT_EDIT:
+      if(knobval != 0){
+          menu.dc = (knobVal + menu.dc + 101)%101;
+      }else if(swSel == SEL_SHORT){
+          menu.schedulePoint.dc = menu.dc;
+          menu.editionSchedule.delPoint(menu.point);
+          menu.editionSchedule.addPoint(menu.schedulePoint);
+          menu.editionSchedule.save();
+      }else if(swBack){
+          menu.fsm = PT_SEL;
+      }
       break;
     case PT_DEL:
+      if(swSel == SEL_SHORT){
+          menu.fsm = PT_DEL_CONF;
+      }else if(swBack){
+          menu.fsm = PT_SEL;
+      }
       break;
     case PT_DEL_CONF:
+      if(swBack){
+          menu.fsm = PT_SEL;
+      }else if(swSel == SEL_SHORT){
+          menu.editionSchedule.delPoint(menu.point);
+          menu.editionSchedule.save();
+      }
       break;
     case PT_NEW:
+        //TODO manage case where schedule is already full.
+      if(swSel == SEL_SHORT){
+          menu.hh = 0;
+          menu.fsm = PT_NEW_HH;
+      }else if(swBack){
+          menu.fsm = PT_SEL;
+      }
       break;
     case PT_NEW_HH:
+      if(knobVal != 0){
+          menu.hh = (knobVal + menu.hh + 120)%24;
+      }else if(swSel == SEL_SHORT){
+          menu.schedulePoint.hh = menu.hh;
+          menu.mm = 0;
+          menu.fsm = PT_NEW_MM;
+      }else if(swBack){
+          menu.fsm = PT_SEL;
+      }
       break;
     case PT_NEW_MM:
+      if(knobVal != 0){
+          menu.mm = (knobVal + menu.mm + 120)%60;
+      }else if(swSel == SEL_SHORT){
+          menu.schedulePoint.mm = menu.mm;
+          menu.dc = 0;
+          menu.fsm = PT_NEW_DC;
+      }else if(swBack){
+          menu.fsm = PT_SEL;
+      }
       break;
     case PT_NEW_DC:
+      if(knobVal != 0){
+        menu.dc = (knobVal + menu.dc + 101)%101;
+      }else if(swSel == SEL_SHORT){
+        menu.schedulePoint.dc = menu.dc;
+        menu.editionSchedule.addPoint(menu.schedulePoint);
+        menu.editionSchedule.save();
+        menu.fsm = PT_SEL;
+      }else if(swBack){
+        menu.fsm = PT_SEL;
+      }
       break;
   }
 }
