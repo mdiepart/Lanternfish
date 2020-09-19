@@ -25,6 +25,8 @@ class DaySchedule{
     unsigned char ptHour[NB_PTS_MAX] = {0};
     unsigned char ptMin[NB_PTS_MAX] = {0};
     unsigned char ptDC[NB_PTS_MAX] = {0};
+    unsigned char prevD = 0, prevH = 0, prevM = 0, prevDC = 0;
+    unsigned char nextD = 0, nextH = 0, nextM = 0, nextDC = 0;
     void setSize(unsigned char n);
 
   public:
