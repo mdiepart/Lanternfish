@@ -846,7 +846,8 @@ void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, co
           menu.schedulePoint.dc = menu.dc;
           menu.editionSchedule.delPoint(menu.pointNb);
           menu.editionSchedule.addPoint(menu.schedulePoint);
-          menu.editionSchedule.save();
+          //menu.editionSchedule.save(); //Addpoint already saves schedule
+          schedule.changeDay(_dow); // Refreshes loaded schedule
       }else if(swBack){
           menu.fsm = PT_SEL;
       }
@@ -856,7 +857,8 @@ void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, co
           menu.fsm = PT_SEL;
       }else if(swSel == SEL_SHORT){
           menu.editionSchedule.delPoint(menu.pointNb);
-          menu.editionSchedule.save();
+          //menu.editionSchedule.save(); //Addpoint already saves schedule
+          schedule.changeDay(_dow); // Refreshes loaded schedule          
       }
       break;
     case PT_NEW:
@@ -896,7 +898,8 @@ void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, co
       }else if(swSel == SEL_SHORT){
         menu.schedulePoint.dc = menu.dc;
         menu.editionSchedule.addPoint(menu.schedulePoint);
-        menu.editionSchedule.save();
+        //menu.editionSchedule.save(); //Addpoint already saves schedule
+        schedule.changeDay(_dow); // Refreshes loaded schedule        
         menu.fsm = PT_SEL;
       }else if(swBack){
         menu.fsm = PT_SEL;
