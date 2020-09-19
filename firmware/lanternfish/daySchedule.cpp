@@ -139,7 +139,7 @@ bool DaySchedule::changeDay(unsigned char day){
     
     // If the size we read is higher than NB_PTS_MAX we consider the memory
     // as unitialized
-    if( n>NB_PTS_MAX ){
+    if(n > NB_PTS_MAX){
         setSize(0);
     }else{
         setSize(n);    
@@ -147,9 +147,9 @@ bool DaySchedule::changeDay(unsigned char day){
     
     // Read memory
     for(unsigned char i = 0; i < getSize(); i++){
-        ptHour[i] = EEPROM.read(offset + 3*i);
-        ptMin[i] = EEPROM.read(offset + 3*i + 1);
-        ptDC[i] = EEPROM.read(offset + 3*i + 2);
+        ptHour[i] = EEPROM.read(offset + 3*i + 1);
+        ptMin[i] = EEPROM.read(offset + 3*i + 2);
+        ptDC[i] = EEPROM.read(offset + 3*i + 3);
     }
     for(unsigned char i = getSize(); i < NB_PTS_MAX; i++){
         ptHour[i] = 0;
@@ -172,9 +172,9 @@ bool DaySchedule::save(){
     size_t offset = dow*BYTES_PER_DAY;
     EEPROM.update(offset, getSize());
     for(unsigned char i = 0; i < NB_PTS_MAX; i++){
-        EEPROM.update(offset + 3*i, ptHour[i]);
-        EEPROM.update(offset + 3*i + 1, ptMin[i]);
-        EEPROM.update(offset + 3*i + 2, ptDC[i]);
+        EEPROM.update(offset + 3*i + 1, ptHour[i]);
+        EEPROM.update(offset + 3*i + 2, ptMin[i]);
+        EEPROM.update(offset + 3*i + 3, ptDC[i]);
     }
     
 }
