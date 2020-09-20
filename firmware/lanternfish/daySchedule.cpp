@@ -16,7 +16,7 @@ unsigned char DaySchedule::getSize() const{
   return nbPts;
 }
 
-point DaySchedule::getPoint(unsigned char pos) const{
+point DaySchedule::getPoint(const unsigned char pos) const{
     if(pos >= getSize()){
         return point{0, 0, 0};
     }else{
@@ -35,7 +35,7 @@ point DaySchedule::getPoint(unsigned char pos) const{
  *  bool: true if the point was successfully added. 
  *        false otherwise (error or schedule full)
  */
-bool DaySchedule::addPoint(point pt){
+bool DaySchedule::addPoint(const point pt){
     //If the list is full we return false
     if(getSize() == NB_PTS_MAX){
         return false;
@@ -97,7 +97,7 @@ bool DaySchedule::addPoint(point pt){
  *  bool: true if point was successfully found and deleted
  *        false otherwise
  */
-bool DaySchedule::delPoint(unsigned char pos){
+bool DaySchedule::delPoint(const unsigned char pos){
     if( pos >= getSize() ){
         return false;
     }
@@ -130,7 +130,7 @@ bool DaySchedule::delPoint(unsigned char pos){
  *  bool: true if successful
  *        false otherwise
  */
-bool DaySchedule::changeDay(unsigned char day){
+bool DaySchedule::changeDay(const unsigned char day){
     if( day >= 7 ){
         return false;
     }
@@ -215,7 +215,7 @@ bool DaySchedule::save(){
     
 }
 
-void DaySchedule::setSize(unsigned char n){
+void DaySchedule::setSize(const unsigned char n){
     nbPts = n;
 }
 
@@ -226,4 +226,82 @@ void DaySchedule::reset(){
     ptDC[i] = 0;
   }
   setSize(0);
+}
+
+unsigned char DaySchedule::getPower(const unsigned char hh, const unsigned char mm, const unsigned char ss) const{
+    
+    unsigned char pt1D = 0, pt1H = 0, pt1M = 0, pt1DC = 0
+    unsigned char pt2D = 0, pt2H = 0, pt2M = 0, pt2DC = 0;
+    
+    if(nbPts > 0){
+        //Determine point before
+        int i = 0;
+        while(ptHour[i] < hh && i < LENGTH){
+            i++;
+        }
+        while(ptHour[i] == hh && ptMin[i] < mm && i < LENGTH){
+            i++;
+        }
+        i--;
+        
+        if(i < 0){
+            pt1D = prevD;
+            pt1H = prevH;
+            pt1M = prevM;
+            pt1DC = prevDC;
+        }else{
+            pt1D = dow;
+            pt1H = ptHour[i];
+            pt1M = ptMin[i];
+            pt1DC = ptDC[i];
+        }
+        
+        //i+1 is the next point. If >= nbPts we take the one of the next day
+        i++;
+        if(i >= nbPts ){
+            pt2D = nextD;
+            pt2H = nextH;
+            pt2M = nextM;
+            pt2DC = nextDC;
+        }else{
+            pt2D = dow;
+            pt2H = ptHour[i];
+            pt2M = ptMin[i];
+            pt2DC = ptDC[i];
+        }
+    }else{
+        pt1D = prevD;
+        pt1H = prevH;
+        pt1M = prevM;
+        pt1DC = prevDC;
+        pt2D = nextD;
+        pt2H = nextH;
+        pt2M = nextM;
+        pt2DC = nextDC;
+    }
+    
+    //Compute adequate power
+    //Compute time from pt1 to pt2
+    unsigned int nbHours = (24 + pt2H - pt1H)%24;
+    if((pt1D == pt2D) && (pt1H <= pt2H && pt1M <= pt2M)){
+        nbHours += 6*24;
+    }else{
+        nbHours += 24*(7 + pt2D - pt1D)%7;
+    }
+    int nbMin = pt2M - pt1M;
+    
+    unsigned long int length_12 = 60*(nbHours*60+nbMin); // length in seconds
+    
+    //compute time from pt1 to hh:mm:ss
+    nbHours = (24 + hh - pt1H)%24;
+    if((pt1D == dow) && (pt1H <= hh && pt1M <= mm)){
+        nbHours += 6*24;
+    }else{
+        nbHours += 24*(7 + dow - pt1D)%7;
+    }
+    nbMin = mm - pt1M;
+    unsigned long int length_1t = 60*(nbHours*60+nbMin)+ss; // length in seconds
+    
+    return pt1DC + (pt2DC-pt1DC)*length_1t/length_12;
+    
 }

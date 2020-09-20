@@ -27,18 +27,19 @@ class DaySchedule{
     unsigned char ptDC[NB_PTS_MAX] = {0};
     unsigned char prevD = 0, prevH = 0, prevM = 0, prevDC = 0;
     unsigned char nextD = 0, nextH = 0, nextM = 0, nextDC = 0;
-    void setSize(unsigned char n);
+    void setSize(const unsigned char n);
 
   public:
-    DaySchedule(unsigned char dayOfWeek);
+    DaySchedule(const unsigned char dayOfWeek);
     unsigned char getSize() const;
-    point getPoint(unsigned char pos) const;
-    bool addPoint(point pt);
-    bool delPoint(unsigned char pos);
-    bool changeDay(unsigned char day);
+    point getPoint(const unsigned char pos) const;
+    bool addPoint(const point pt);
+    bool delPoint(const unsigned char pos);
+    bool changeDay(const unsigned char day);
     bool save();
     void reset();
-    
+    unsigned char getPower(const unsigned char hh, const unsigned char mm,
+        const unsigned char ss) const;
 };
 
 #endif
