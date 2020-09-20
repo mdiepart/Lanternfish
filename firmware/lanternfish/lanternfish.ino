@@ -112,6 +112,7 @@ void setup() {
   lcd.write("Lanternfish");
   lcd.setCursor(0, 1);
   lcd.write(FW_VERSION);
+  lcd.noCursor();
    
   /* Configures pins */
   pinMode(PIN_PD5, OUTPUT); // Gate
@@ -237,15 +238,12 @@ ISR(PCINT3_vect){
 }
 
 void loop() {
-  /*
-   * Read buttons, knob,...
-   * Read rtc every 10 seconds
-   * update menu state
-   * refresh screen
-   */
-  long int knobVal = knob.read(); knob.write(0);
-  static long unsigned int lastRTCRead = 0;
+  
+  static long unsigned int lastRTCRead = 0;  
   static unsigned short int prevDow = _dow;
+  // Read knob value
+  long int knobVal = knob.read(); knob.write(0);
+  
 
   //Check if we have to fetch time from RTC
   if(millis() - lastRTCRead > RTC_UPDATE_INTERVAL){
@@ -274,7 +272,8 @@ void loop() {
     digitalWrite(PIN_PD6, HIGH);
   }
   
-  updateMenu(knobVal, swSelStat, swBackStat, swNewStat);
+  //Updates the menu state (and LCD content)
+  updateMenu(knobVal, swSelStat, swBackStat, swNewStat);  
 }
 
 /*
@@ -585,6 +584,12 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
         line2 = String(STR_POWER) + menu.dc;
       break;
   }
+  
+  //Update lcd content
+  lcd.setCursor(0, 0);
+  lcd.write(line1);
+  lcd.setCursor(0, 1);
+  lcd.write(line2);
 }
 
 void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, const bool swBack, const bool swNew){
@@ -727,7 +732,7 @@ void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, co
         menu.fsm = TUE;
       }else if(knobVal < 0){
         menu.fsm = SUN;
-    }else if(swSel == SEL_SHORT){
+      }else if(swSel == SEL_SHORT){
         menu.editionSchedule.changeDay(MONDAY);
         menu.fsm = PT_SEL;
       }else if(swBack){
