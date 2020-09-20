@@ -256,6 +256,10 @@ void loop() {
       schedule.changeDay(_dow);
       prevDow = _dow;
     }
+    
+    // Updates power
+    unsigned char power = schedule.getPower(_timeH, _timeM, _timeS);
+    analogWrite(D5, power);
   }
 
   
