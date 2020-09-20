@@ -71,6 +71,7 @@ typedef struct{
 
 unsigned char _timeH = 0;
 unsigned char _timeM = 0;
+unsigned char _timeS = 0;
 unsigned char _dow = 0;
 
 void setup() {
@@ -248,7 +249,7 @@ void loop() {
 
   //Check if we have to fetch time from RTC
   if(millis() - lastRTCRead > RTC_UPDATE_INTERVAL){
-    if(getRTCTime(_dow, _timeH, _timeM) == true){
+    if(getRTCTime(_dow, _timeH, _timeM, _timeS) == true){
       lastRTCRead = millis();  
     }
     if(_dow != prevDow){
@@ -300,30 +301,33 @@ bool setRTCTime(const uint8_t dd, const uint8_t hh, const uint8_t mm){
 
 /*
  * Querries the time (Day of the weeh, hour and minutes) from the RTC module.
- *  *dd pointer to bcd. Will contain the day of the week after the call
- *  *hh pointer to bcd. Will contain the hour after the call
- *  *mm pointer to bcd. Will contain the minutes after the call
+ *  *dd pointer to uint8_t. Will contain the day of the week after the call
+ *  *hh pointer to uint8_t. Will contain the hour after the call
+ *  *mm pointer to uint8_t. Will contain the minutes after the call
+ *  *ss pointer to uint8_t. Will contain the seconds after the call
  *  
  *  Returns:
  *  True if successful
  *  False otherwise
  */
-bool getRTCTime(uint8_t &dd, uint8_t &hh, uint8_t &mm){
+bool getRTCTime(uint8_t &dd, uint8_t &hh, uint8_t &mm, uint8_t &ss){
   /* Set address pointer to 0x01 */
   Wire.beginTransmission(RTC_ADD);
-  Wire.write(0x01);
+  Wire.write(0x00);
   Wire.endTransmission();
 
   /* Read 3 bytes */
-  Wire.requestFrom(RTC_ADD, 3, 1);
+  Wire.requestFrom(RTC_ADD, 4, 1);
   short int counter = 0;
   while(Wire.available()){
     char c = Wire.read();
-    if(counter == 0){ //Minutes
+    if(counter == 0){ // Seconds
+      ss = ((c & 0b01110000)>>4)*10 + (c & 0b00001111);    
+    }else if(counter == 1){ //Minutes
       mm = ((c & 0b01110000)>>4)*10 + (c & 0b00001111);
-    }else if(counter == 1){ // Hours
-      hh = ((c & 0b00110000)>>4)*10 + (c & 0b00001111);
-    }else if(counter == 2){ // Day of the week
+    }else if(counter == 2){ // Hours
+      hh = ((c & 0b00110000)>>4)*10 + (c & 0b00001111); 
+    }else if(counter == 3){ // Day of the week
       dd = (c & 0b00000111);
     }
     counter++;
