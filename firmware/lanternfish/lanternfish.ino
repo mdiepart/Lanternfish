@@ -125,7 +125,7 @@ void setup() {
   enableRTC();
 
   //Fetch the time from the RTC
-  if(!getRTCTime(_dow, _timeH, _timeM)){
+  if (!getRTCTime(_dow, _timeH, _timeM, _timeS)) {
     //There was an error fetching time from the RTC.
     lcd.setCursor(0, 0);
     lcd.write("RTC ERROR");
@@ -243,37 +243,53 @@ void loop() {
   static unsigned short int prevDow = _dow;
   // Read knob value
   long int knobVal = knob.read(); knob.write(0);
-  
 
-  //Check if we have to fetch time from RTC
-  if(millis() - lastRTCRead > RTC_UPDATE_INTERVAL){
-    if(getRTCTime(_dow, _timeH, _timeM, _timeS) == true){
-      lastRTCRead = millis();  
-    }
-    if(_dow != prevDow){
-      schedule.changeDay(_dow);
-      prevDow = _dow;
-    }
-    
-    // Updates power
-    unsigned char power = schedule.getPower(_timeH, _timeM, _timeS);
-    analogWrite(D5, power);
-  }
-
-  
-  if(knobVal != 0){
+  if (knobVal != 0) {
     lastActivity = millis();
   }
-  
+
   /* checks if we have to shutdown LCD */
-  if(millis() - lastActivity >= LCD_TIMEOUT){
+  if (millis() - lastActivity >= LCD_TIMEOUT) {
     digitalWrite(PIN_PD6, LOW);
-  }else{
+  } else {
     digitalWrite(PIN_PD6, HIGH);
   }
-  
-  //Updates the menu state (and LCD content)
-  updateMenu(knobVal, swSelStat, swBackStat, swNewStat);  
+
+  if (swManStat == true) { // Manual mode
+    static int manPower = 0;
+    manPower = (manPower + knobVal) % 101;
+    if (manPower < 0) {
+      manPower = 0;
+    }
+    String line2 = String(manPower) + " %";
+    lcd.setCursor(0, 0);
+    lcd.write(STR_MAN_MODE);
+    lcd.setCursor(0, 1);
+    lcd.write(line2.c_str());
+    swSelStat = 0;
+    swBackStat = false;
+    swNewStat = false;
+    analogWrite(PIN_PD5, (unsigned char) manPower);
+  } else {
+    //Check if we have to fetch time from RTC
+    if (millis() - lastRTCRead > RTC_UPDATE_INTERVAL) {
+      if (getRTCTime(_dow, _timeH, _timeM, _timeS) == true) {
+        lastRTCRead = millis();
+      }
+      if (_dow != prevDow) {
+        schedule.changeDay(_dow);
+        prevDow = _dow;
+      }
+
+      // Updates power
+      unsigned char power = schedule.getPower(_timeH, _timeM, _timeS);
+      analogWrite(PIN_PD5, power);
+    }
+    //Updates the menu state (and LCD content)
+    updateMenu(knobVal, swSelStat, swBackStat, swNewStat);
+  }
+
+
 }
 
 /*
@@ -587,9 +603,9 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
   
   //Update lcd content
   lcd.setCursor(0, 0);
-  lcd.write(line1);
+  lcd.write(line1.c_str());
   lcd.setCursor(0, 1);
-  lcd.write(line2);
+  lcd.write(line2.c_str());
 }
 
 void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, const bool swBack, const bool swNew){
