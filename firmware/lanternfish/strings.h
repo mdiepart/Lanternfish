@@ -23,6 +23,7 @@
     #define STR_HOUR        "Hour"
     #define STR_MINUTES     "Minutes"
     #define STR_POWER       "Power"
+    #define STR_MAN_MODE    "Manual mode"
 
 #elif defined(FRENCH)
     #define STR_ERROR       "ERREUR"
@@ -46,7 +47,7 @@
     #define STR_HOUR        "Heure"
     #define STR_MINUTES     "Minutes"
     #define STR_POWER       "Puissance"
-
+    #define STR_MAN_MODE    "Mode manuel"
 
 #endif
 
