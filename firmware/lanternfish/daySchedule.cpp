@@ -164,7 +164,7 @@ bool DaySchedule::changeDay(const unsigned char day){
         i--;
         counter++;
         if(i > 6){       // if we underflow
-            i = 6
+            i = 6;
         }
     } // i now contains the previous DOW with at least 1 point (if counter <= 6)
     
@@ -176,7 +176,7 @@ bool DaySchedule::changeDay(const unsigned char day){
     
     // Load value of prev point
     prevD = i;
-    unsigned char n = EEPROM.read(i*BYTES_PER_DAY);
+    n = EEPROM.read(i*BYTES_PER_DAY);
     prevH = EEPROM.read(i*BYTES_PER_DAY + 3*(n-1) + 1);
     prevM = EEPROM.read(i*BYTES_PER_DAY + 3*(n-1) + 2);
     prevDC = EEPROM.read(i*BYTES_PER_DAY + 3*(n-1) + 3);
@@ -230,16 +230,16 @@ void DaySchedule::reset(){
 
 unsigned char DaySchedule::getPower(const unsigned char hh, const unsigned char mm, const unsigned char ss) const{
     
-    unsigned char pt1D = 0, pt1H = 0, pt1M = 0, pt1DC = 0
+    unsigned char pt1D = 0, pt1H = 0, pt1M = 0, pt1DC = 0;
     unsigned char pt2D = 0, pt2H = 0, pt2M = 0, pt2DC = 0;
     
     if(nbPts > 0){
         //Determine point before
         int i = 0;
-        while(ptHour[i] < hh && i < LENGTH){
+        while(ptHour[i] < hh && i < nbPts){
             i++;
         }
-        while(ptHour[i] == hh && ptMin[i] < mm && i < LENGTH){
+        while(ptHour[i] == hh && ptMin[i] < mm && i < nbPts){
             i++;
         }
         i--;
@@ -248,12 +248,12 @@ unsigned char DaySchedule::getPower(const unsigned char hh, const unsigned char 
             pt1D = prevD;
             pt1H = prevH;
             pt1M = prevM;
-            pt1DC = prevDC;
+            pt1DC = prevDC*2.56;
         }else{
             pt1D = dow;
             pt1H = ptHour[i];
             pt1M = ptMin[i];
-            pt1DC = ptDC[i];
+            pt1DC = ptDC[i]*2.56;
         }
         
         //i+1 is the next point. If >= nbPts we take the one of the next day
@@ -262,22 +262,22 @@ unsigned char DaySchedule::getPower(const unsigned char hh, const unsigned char 
             pt2D = nextD;
             pt2H = nextH;
             pt2M = nextM;
-            pt2DC = nextDC;
+            pt2DC = nextDC*2.56;
         }else{
             pt2D = dow;
             pt2H = ptHour[i];
             pt2M = ptMin[i];
-            pt2DC = ptDC[i];
+            pt2DC = ptDC[i]*2.56;
         }
     }else{
         pt1D = prevD;
         pt1H = prevH;
         pt1M = prevM;
-        pt1DC = prevDC;
+        pt1DC = prevDC*2.56;
         pt2D = nextD;
         pt2H = nextH;
         pt2M = nextM;
-        pt2DC = nextDC;
+        pt2DC = nextDC*2.56;
     }
     
     //Compute adequate power
