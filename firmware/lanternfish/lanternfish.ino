@@ -8,12 +8,13 @@
 
 #define FW_VERSION "1.0.0"
 #define ENGLISH
+#define F_CPU 8000000
+#include <Arduino.h>
 #include <LiquidCrystal.h>
 #define ENCODER_USE_INTERRUPTS
 #define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Encoder.h>
 #include <Wire.h>
-#include <String.h>
 #include "strings.h"
 #include "daySchedule.h"
 
@@ -29,7 +30,7 @@ typedef unsigned short int bcd;
 
 LiquidCrystal lcd(PIN_PB2, PIN_PB1, PIN_PB0, PIN_PC0, PIN_PD7, PIN_PD0, PIN_PC1,
                   PIN_PD4, PIN_PD1, PIN_PC2, PIN_PC3);
-Encoder knob(PIN_PD2, PIN_PD3);
+Encoder knob(PIN_PD3, PIN_PD2);
 
 DaySchedule schedule(0);
 
@@ -113,10 +114,14 @@ void setup() {
   lcd.setCursor(0, 1);
   lcd.write(FW_VERSION);
   lcd.noCursor();
-   
+  delay(1000);
   /* Configures pins */
   pinMode(PIN_PD5, OUTPUT); // Gate
   pinMode(PIN_PD6, OUTPUT); // LCD Backlight
+  pinMode(PIN_PB6, INPUT);
+  pinMode(PIN_PB7, INPUT);
+  pinMode(PIN_PE0, INPUT);
+  pinMode(PIN_PE1, INPUT);  
 
   /* Configures I2C */
   Wire.begin();
@@ -134,7 +139,13 @@ void setup() {
 
   // Load data points for today
   schedule.changeDay(_dow);
-  
+  digitalWrite(PIN_PD6, HIGH);
+
+  /*  
+   *   Init man mode
+   */
+
+   swManStat = (PINB & (1 << PB7)) != 0;
   /*
    * Enabling PinChangeInterrupt
    */
@@ -145,15 +156,16 @@ void setup() {
 }
 
 ISR(PCINT0_vect){
-  bool swMan = (PORTB & (1 << PB7)) != 0;
-  bool swSel = (PORTB & (1 << PB6)) != 0;
+  bool swMan = (PINB & (1 << PB7)) != 0;
+  bool swSel = (PINB & (1 << PB6)) != 0;
+  
   lastActivity = millis();
 
   /*
    * Sel switch (knob press switch) 
    * Sets the status of the switch only after it is release
    * to be able to distinguish between long and short presses
-   */
+   *//*
   static long int selFallTime = 0;
   static bool selPrevValue = true;
   if(selPrevValue && !swSel){
@@ -197,8 +209,8 @@ ISR(PCINT0_vect){
 }
 
 ISR(PCINT3_vect){
-  bool swBack = (PORTE & (1 << PE0)) != 0;
-  bool swNew = (PORTE & (1 << PE1)) != 0;
+  bool swBack = (PINE & (1 << PE0)) != 0;
+  bool swNew = (PINE & (1 << PE1)) != 0;
   lastActivity = millis();
 
   /*
@@ -238,11 +250,11 @@ ISR(PCINT3_vect){
 }
 
 void loop() {
-  
+  unsigned long int loopDuration = millis();
   static long unsigned int lastRTCRead = 0;  
   static unsigned short int prevDow = _dow;
   // Read knob value
-  long int knobVal = knob.read(); knob.write(0);
+  long int knobVal = knob.read()/3; knob.write(0);
 
   if (knobVal != 0) {
     lastActivity = millis();
@@ -257,9 +269,11 @@ void loop() {
 
   if (swManStat == true) { // Manual mode
     static int manPower = 0;
-    manPower = (manPower + knobVal) % 101;
+    manPower += knobVal;
     if (manPower < 0) {
       manPower = 0;
+    }else if(manPower > 100){
+      manPower = 100;
     }
     String line2 = String(manPower) + " %";
     lcd.setCursor(0, 0);
@@ -269,8 +283,8 @@ void loop() {
     swSelStat = 0;
     swBackStat = false;
     swNewStat = false;
-    analogWrite(PIN_PD5, (unsigned char) manPower);
-  } else {
+    analogWrite(PIN_PD5, manPower*2.55);
+  } else { //Schedule mode
     //Check if we have to fetch time from RTC
     if (millis() - lastRTCRead > RTC_UPDATE_INTERVAL) {
       if (getRTCTime(_dow, _timeH, _timeM, _timeS) == true) {
@@ -287,9 +301,10 @@ void loop() {
     }
     //Updates the menu state (and LCD content)
     updateMenu(knobVal, swSelStat, swBackStat, swNewStat);
+
   }
 
-
+    while(millis() - loopDuration < 100){}
 }
 
 /*
