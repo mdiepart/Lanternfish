@@ -133,7 +133,7 @@ void setup() {
   if (!getRTCTime(_dow, _timeH, _timeM, _timeS)) {
     //There was an error fetching time from the RTC.
     lcd.setCursor(0, 0);
-    lcd.write("RTC ERROR");
+    lcd.write("RTC ERROR           ");
     while(true){}
   }
 
@@ -277,9 +277,9 @@ void loop() {
     }
     String line2 = String(manPower) + " %";
     lcd.setCursor(0, 0);
-    lcd.write(STR_MAN_MODE);
+    lcd.write((String(STR_MAN_MODE) + "         ").c_str());
     lcd.setCursor(0, 1);
-    lcd.write(line2.c_str());
+    lcd.write((line2 + "                 ").c_str());
     swSelStat = 0;
     swBackStat = false;
     swNewStat = false;
@@ -618,9 +618,9 @@ void updateMenu(const long int knobVal, const char swSel, const bool swBack, con
   
   //Update lcd content
   lcd.setCursor(0, 0);
-  lcd.write(line1.c_str());
+  lcd.write((line1 + "                    ").c_str());
   lcd.setCursor(0, 1);
-  lcd.write(line2.c_str());
+  lcd.write((line2 + "                    ").c_str());
 }
 
 void updateMenuFSM(menuState &menu, const long int knobVal, const char swSel, const bool swBack, const bool swNew){
